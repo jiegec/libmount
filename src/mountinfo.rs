@@ -1,11 +1,10 @@
 //! This module contains parser for /proc/PID/mountinfo
 //!
-use std;
-use std::fmt;
-use std::ffi::{OsStr, OsString};
-use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::borrow::Cow;
 use std::error::Error;
+use std::ffi::{OsStr, OsString};
+use std::fmt;
+use std::os::unix::ffi::{OsStrExt, OsStringExt};
 
 use nix::mount::MsFlags;
 
@@ -23,7 +22,7 @@ impl fmt::Display for ParseRowError {
 
 impl Error for ParseRowError {
     fn description(&self) -> &str {
-        return &self.0;
+        &self.0
     }
 }
 
@@ -38,25 +37,26 @@ pub struct ParseError {
 impl ParseError {
     fn new(msg: String, row_num: usize, row: String) -> ParseError {
         ParseError {
-            msg: msg,
-            row_num: row_num,
-            row: row,
+            msg,
+            row_num,
+            row,
         }
     }
 }
 
 impl fmt::Display for ParseError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Parse error at line {}: {}\n{}",
-            self.row_num, self.description(), self.row)
+        write!(
+            f,
+            "Parse error at line {}: {}\n{}",
+            self.row_num,
+            self.msg,
+            self.row
+        )
     }
 }
 
-impl Error for ParseError {
-    fn description(&self) -> &str {
-        return &self.msg;
-    }
-}
+impl Error for ParseError {}
 
 /// A parser class for mountinfo file
 #[derive(Debug)]
@@ -73,7 +73,7 @@ impl<'a> Parser<'a> {
     /// `data` should contain whole contents of `mountinfo` file of any process
     pub fn new(data: &'a [u8]) -> Parser<'a> {
         Parser {
-            data: data,
+            data,
             row_num: 0,
             exhausted: false,
         }
@@ -81,7 +81,7 @@ impl<'a> Parser<'a> {
 }
 
 /// A single entry returned by mountpoint parser
-#[allow(missing_docs)]  // self-descriptive / described by man page
+#[allow(missing_docs)] // self-descriptive / described by man page
 #[derive(Debug)]
 pub struct MountPoint<'a> {
     pub mount_id: c_ulong,
@@ -111,17 +111,29 @@ impl<'a> MountPoint<'a> {
         let mut flags = MsFlags::empty();
         for opt in self.mount_options.as_bytes().split(|c| *c == b',') {
             let opt = OsStr::from_bytes(opt);
-            if opt == OsStr::new("ro") { flags |= MsFlags::MS_RDONLY }
-            else if opt == OsStr::new("nosuid") { flags |= MsFlags::MS_NOSUID }
-            else if opt == OsStr::new("nodev") { flags |= MsFlags::MS_NODEV }
-            else if opt == OsStr::new("noexec") { flags |= MsFlags::MS_NOEXEC }
-            else if opt == OsStr::new("mand") { flags |= MsFlags::MS_MANDLOCK }
-            else if opt == OsStr::new("sync") { flags |= MsFlags::MS_SYNCHRONOUS }
-            else if opt == OsStr::new("dirsync") { flags |= MsFlags::MS_DIRSYNC }
-            else if opt == OsStr::new("noatime") { flags |= MsFlags::MS_NOATIME }
-            else if opt == OsStr::new("nodiratime") { flags |= MsFlags::MS_NODIRATIME }
-            else if opt == OsStr::new("relatime") { flags |= MsFlags::MS_RELATIME }
-            else if opt == OsStr::new("strictatime") { flags |= MsFlags::MS_STRICTATIME }
+            if opt == OsStr::new("ro") {
+                flags |= MsFlags::MS_RDONLY
+            } else if opt == OsStr::new("nosuid") {
+                flags |= MsFlags::MS_NOSUID
+            } else if opt == OsStr::new("nodev") {
+                flags |= MsFlags::MS_NODEV
+            } else if opt == OsStr::new("noexec") {
+                flags |= MsFlags::MS_NOEXEC
+            } else if opt == OsStr::new("mand") {
+                flags |= MsFlags::MS_MANDLOCK
+            } else if opt == OsStr::new("sync") {
+                flags |= MsFlags::MS_SYNCHRONOUS
+            } else if opt == OsStr::new("dirsync") {
+                flags |= MsFlags::MS_DIRSYNC
+            } else if opt == OsStr::new("noatime") {
+                flags |= MsFlags::MS_NOATIME
+            } else if opt == OsStr::new("nodiratime") {
+                flags |= MsFlags::MS_NODIRATIME
+            } else if opt == OsStr::new("relatime") {
+                flags |= MsFlags::MS_RELATIME
+            } else if opt == OsStr::new("strictatime") {
+                flags |= MsFlags::MS_STRICTATIME
+            }
         }
         flags
     }
@@ -144,57 +156,63 @@ impl<'a> Iterator for Parser<'a> {
                     let res = match parse_mount_point(row) {
                         Ok(None) => continue,
                         Ok(Some(v)) => Ok(v),
-                        Err(e) => Err(ParseError::new(e.0, self.row_num,
-                            String::from_utf8_lossy(row).into_owned())),
+                        Err(e) => Err(ParseError::new(
+                            e.0,
+                            self.row_num,
+                            String::from_utf8_lossy(row).into_owned(),
+                        )),
                     };
                     return Some(res);
-                },
+                }
                 None => {
                     self.exhausted = true;
                     let res = match parse_mount_point(self.data) {
                         Ok(None) => return None,
                         Ok(Some(v)) => Ok(v),
-                        Err(e) => Err(ParseError::new(e.0, self.row_num,
-                            String::from_utf8_lossy(self.data).into_owned())),
+                        Err(e) => Err(ParseError::new(
+                            e.0,
+                            self.row_num,
+                            String::from_utf8_lossy(self.data).into_owned(),
+                        )),
                     };
                     return Some(res);
-                },
+                }
             }
         }
     }
 }
 
-pub(crate) fn parse_mount_point<'a>(row: &'a [u8])
-     -> Result<Option<MountPoint<'a>>, ParseRowError>
-{
+pub(crate) fn parse_mount_point(
+    row: &[u8],
+) -> Result<Option<MountPoint>, ParseRowError> {
     let row = rstrip_cr(&row);
     if is_comment_line(row) {
         return Ok(None);
     }
 
-    let (mount_id, row) = try!(parse_int(row));
-    let (parent_id, row) = try!(parse_int(row));
-    let (major, minor, row) = try!(parse_major_minor(row));
-    let (root, row) = try!(parse_os_str(row));
-    let (mount_point, row) = try!(parse_os_str(row));
-    let (mount_options, row) = try!(parse_os_str(row));
-    let (optional_fields, row) = try!(parse_optional(row));
-    let (fstype, row) = try!(parse_os_str(row));
-    let (mount_source, row) = try!(parse_os_str(row));
-    let (super_options, _) = try!(parse_os_str(row));
+    let (mount_id, row) = parse_int(row)?;
+    let (parent_id, row) = parse_int(row)?;
+    let (major, minor, row) = parse_major_minor(row)?;
+    let (root, row) = parse_os_str(row)?;
+    let (mount_point, row) = parse_os_str(row)?;
+    let (mount_options, row) = parse_os_str(row)?;
+    let (optional_fields, row) = parse_optional(row)?;
+    let (fstype, row) = parse_os_str(row)?;
+    let (mount_source, row) = parse_os_str(row)?;
+    let (super_options, _) = parse_os_str(row)?;
     // TODO: should we ignore extra fields?
     Ok(Some(MountPoint {
-        mount_id: mount_id,
-        parent_id: parent_id,
-        major: major,
-        minor: minor,
-        root: root,
-        mount_point: mount_point,
-        mount_options: mount_options,
-        optional_fields: optional_fields,
-        fstype: fstype,
-        mount_source: mount_source,
-        super_options: super_options,
+        mount_id,
+        parent_id,
+        major,
+        minor,
+        root,
+        mount_point,
+        mount_options,
+        optional_fields,
+        fstype,
+        mount_source,
+        super_options,
     }))
 }
 
@@ -211,7 +229,8 @@ fn is_comment_line(row: &[u8]) -> bool {
         }
         return false;
     }
-    return false;
+
+    false
 }
 
 fn rstrip_cr(row: &[u8]) -> &[u8] {
@@ -222,51 +241,52 @@ fn rstrip_cr(row: &[u8]) -> &[u8] {
     }
 }
 
-fn parse_field<'a>(data: &'a [u8], delimit: &'a [u8])
-    -> Result<(&'a [u8], &'a [u8]), ParseRowError>
-{
+fn parse_field<'a>(
+    data: &'a [u8],
+    delimit: &'a [u8],
+) -> Result<(&'a [u8], &'a [u8]), ParseRowError> {
     if data.is_empty() {
-        return Err(ParseRowError(format!("Expected more fields")));
+        return Err(ParseRowError("Expected more fields".to_string()));
     }
     let data = lstrip_whitespaces(data);
     Ok(split_by(data, delimit))
 }
 
-fn parse_os_str<'a>(data: &'a [u8])
-    -> Result<(Cow<'a, OsStr>, &'a [u8]), ParseRowError>
-{
-    let (field, tail) = try!(parse_field(data, b" "));
+fn parse_os_str(data: &[u8]) -> Result<(Cow<OsStr>, &[u8]), ParseRowError> {
+    let (field, tail) = parse_field(data, b" ")?;
     Ok((unescape_octals(OsStr::from_bytes(field)), tail))
 }
 
-fn parse_int(data: &[u8])
-    -> Result<(c_ulong, &[u8]), ParseRowError>
-{
-    let (field, tail) = try!(parse_field(data, b" "));
-    let v = try!(std::str::from_utf8(field).map_err(|e| {
-        ParseRowError(format!("Cannot parse integer {:?}: {}",
-            String::from_utf8_lossy(field).into_owned(), e))}));
+fn parse_int(data: &[u8]) -> Result<(c_ulong, &[u8]), ParseRowError> {
+    let (field, tail) = parse_field(data, b" ")?;
+    let v = std::str::from_utf8(field).map_err(|e| {
+        ParseRowError(format!(
+            "Cannot parse integer {:?}: {}",
+            String::from_utf8_lossy(field).into_owned(),
+            e
+        ))
+    })?;
 
-    let v = try!(c_ulong::from_str_radix(v, 10).map_err(|e| {
-        ParseRowError(format!("Cannot parse integer {:?}: {}",
-            String::from_utf8_lossy(field).into_owned(), e))}));
+    let v = c_ulong::from_str_radix(v, 10).map_err(|e| {
+        ParseRowError(format!(
+            "Cannot parse integer {:?}: {}",
+            String::from_utf8_lossy(field).into_owned(),
+            e
+        ))
+    })?;
     Ok((v, tail))
 }
 
-fn parse_major_minor(data: &[u8])
-    -> Result<(c_ulong, c_ulong, &[u8]), ParseRowError>
-{
-    let (major_field, data) = try!(parse_field(data, b":"));
-    let (minor_field, tail) = try!(parse_field(data, b" "));
-    let (major, _) = try!(parse_int(major_field));
-    let (minor, _) = try!(parse_int(minor_field));
+fn parse_major_minor(data: &[u8]) -> Result<(c_ulong, c_ulong, &[u8]), ParseRowError> {
+    let (major_field, data) = parse_field(data, b":")?;
+    let (minor_field, tail) = parse_field(data, b" ")?;
+    let (major, _) = parse_int(major_field)?;
+    let (minor, _) = parse_int(minor_field)?;
     Ok((major, minor, tail))
 }
 
-fn parse_optional<'a>(data: &'a [u8])
-    -> Result<(Cow<'a, OsStr>, &'a [u8]), ParseRowError>
-{
-    let (field, tail) = try!(parse_field(data, b"- "));
+fn parse_optional(data: &[u8]) -> Result<(Cow<OsStr>, &[u8]), ParseRowError> {
+    let (field, tail) = parse_field(data, b"- ")?;
     let field = rstrip_whitespaces(field);
     Ok((unescape_octals(OsStr::from_bytes(field)), tail))
 }
@@ -277,7 +297,8 @@ fn lstrip_whitespaces(v: &[u8]) -> &[u8] {
             return &v[i..];
         }
     }
-    return &v[0..0];
+
+    &v[0..0]
 }
 
 fn rstrip_whitespaces(v: &[u8]) -> &[u8] {
@@ -286,7 +307,8 @@ fn rstrip_whitespaces(v: &[u8]) -> &[u8] {
             return &v[..i + 1];
         }
     }
-    return &v[0..0];
+
+    &v[0..0]
 }
 
 fn split_by<'a, 'b>(v: &'a [u8], needle: &'b [u8]) -> (&'a [u8], &'a [u8]) {
@@ -301,7 +323,8 @@ fn split_by<'a, 'b>(v: &'a [u8], needle: &'b [u8]) -> (&'a [u8], &'a [u8]) {
         }
         i += 1;
     }
-    return (&v[0..], &v[0..0]);
+
+    (&v[0..], &v[0..0])
 }
 
 fn unescape_octals(s: &OsStr) -> Cow<OsStr> {
@@ -320,7 +343,7 @@ fn unescape_octals(s: &OsStr) -> Cow<OsStr> {
         return Cow::Borrowed(s);
     }
 
-    let mut v: Vec<u8> = vec!();
+    let mut v: Vec<u8> = vec![];
     let bytes = s.as_bytes();
     v.extend_from_slice(&bytes[..i]);
     while i < bytes.len() {
@@ -337,8 +360,7 @@ fn unescape_octals(s: &OsStr) -> Cow<OsStr> {
 }
 
 fn is_octal_encoding(v: &[u8]) -> bool {
-    v.len() >= 4 && v[0] == b'\\'
-        && is_oct(v[1]) && is_oct(v[2]) && is_oct(v[3])
+    v.len() >= 4 && v[0] == b'\\' && is_oct(v[1]) && is_oct(v[2]) && is_oct(v[3])
 }
 
 fn is_oct(c: u8) -> bool {
@@ -351,14 +373,14 @@ fn parse_octal(v: &[u8]) -> u8 {
 
 #[cfg(test)]
 mod test {
-    use std::path::Path;
     use std::ffi::OsStr;
     use std::os::unix::ffi::OsStrExt;
+    use std::path::Path;
 
     use nix::mount::MsFlags;
 
-    use super::{Parser, ParseError};
     use super::{is_octal_encoding, parse_octal, unescape_octals};
+    use super::{ParseError, Parser};
 
     #[test]
     fn test_is_octal_encoding() {
@@ -383,9 +405,15 @@ mod test {
 
     #[test]
     fn test_unescape_octals() {
-        assert_eq!(unescape_octals(OsStr::new("\\000")), OsStr::from_bytes(b"\x00"));
+        assert_eq!(
+            unescape_octals(OsStr::new("\\000")),
+            OsStr::from_bytes(b"\x00")
+        );
         assert_eq!(unescape_octals(OsStr::new("\\00")), OsStr::new("\\00"));
-        assert_eq!(unescape_octals(OsStr::new("test\\040data")), OsStr::new("test data"));
+        assert_eq!(
+            unescape_octals(OsStr::new("test\\040data")),
+            OsStr::new("test data")
+        );
     }
 
     #[test]
@@ -399,12 +427,18 @@ mod test {
         assert_eq!(mount_point.minor, 4);
         assert_eq!(mount_point.root, Path::new("/"));
         assert_eq!(mount_point.mount_point, Path::new("/proc"));
-        assert_eq!(mount_point.mount_options, OsStr::new("rw,nosuid,nodev,noexec,relatime"));
+        assert_eq!(
+            mount_point.mount_options,
+            OsStr::new("rw,nosuid,nodev,noexec,relatime")
+        );
         assert_eq!(mount_point.optional_fields, OsStr::new("shared:12"));
         assert_eq!(mount_point.fstype, OsStr::new("proc"));
         assert_eq!(mount_point.mount_source, OsStr::new("proc"));
         assert_eq!(mount_point.super_options, OsStr::new("rw"));
-        assert_eq!(mount_point.get_mount_flags(), MsFlags::MS_NOSUID | MsFlags::MS_NODEV | MsFlags::MS_NOEXEC | MsFlags::MS_RELATIME);
+        assert_eq!(
+            mount_point.get_mount_flags(),
+            MsFlags::MS_NOSUID | MsFlags::MS_NODEV | MsFlags::MS_NOEXEC | MsFlags::MS_RELATIME
+        );
         assert!(parser.next().is_none());
     }
 
@@ -421,12 +455,18 @@ mod test {
         assert_eq!(mount_point.minor, 4);
         assert_eq!(mount_point.root, Path::new("/"));
         assert_eq!(mount_point.mount_point, Path::new("/#proc"));
-        assert_eq!(mount_point.mount_options, OsStr::new("rw,nosuid,nodev,noexec,relatime"));
+        assert_eq!(
+            mount_point.mount_options,
+            OsStr::new("rw,nosuid,nodev,noexec,relatime")
+        );
         assert_eq!(mount_point.optional_fields, OsStr::new("shared:12"));
         assert_eq!(mount_point.fstype, OsStr::new("proc"));
         assert_eq!(mount_point.mount_source, OsStr::new("proc"));
         assert_eq!(mount_point.super_options, OsStr::new("rw"));
-        assert_eq!(mount_point.get_mount_flags(), MsFlags::MS_NOSUID | MsFlags::MS_NODEV | MsFlags::MS_NOEXEC | MsFlags::MS_RELATIME);
+        assert_eq!(
+            mount_point.get_mount_flags(),
+            MsFlags::MS_NOSUID | MsFlags::MS_NODEV | MsFlags::MS_NOEXEC | MsFlags::MS_RELATIME
+        );
         assert!(parser.next().is_none());
     }
 
@@ -462,7 +502,10 @@ mod test {
         assert_eq!(mount_point.root, Path::new("/"));
         assert_eq!(mount_point.mount_point, Path::new("/proc"));
         assert_eq!(mount_point.mount_options, OsStr::new("rw,relatime"));
-        assert_eq!(mount_point.optional_fields, OsStr::new("shared:12 master:1"));
+        assert_eq!(
+            mount_point.optional_fields,
+            OsStr::new("shared:12 master:1")
+        );
         assert_eq!(mount_point.fstype, OsStr::new("proc"));
         assert_eq!(mount_point.mount_source, OsStr::new("proc"));
         assert_eq!(mount_point.super_options, OsStr::new("rw"));
@@ -480,7 +523,10 @@ mod test {
         assert_eq!(mount_point.major, 8);
         assert_eq!(mount_point.minor, 6);
         assert_eq!(mount_point.root, Path::new("/"));
-        assert_eq!(mount_point.mount_point, Path::new("/home/my super\tname\n\\"));
+        assert_eq!(
+            mount_point.mount_point,
+            Path::new("/home/my super\tname\n\\")
+        );
         assert_eq!(mount_point.mount_options, OsStr::new("rw,relatime"));
         assert_eq!(mount_point.optional_fields, OsStr::new("shared:29"));
         assert_eq!(mount_point.fstype, OsStr::new("ext4"));
@@ -495,7 +541,10 @@ mod test {
         let content = b"22 24 0:19 / /\xff rw shared:5 - tmpfs tmpfs rw,mode=755";
         let mut parser = Parser::new(&content[..]);
         let mount_point = parser.next().unwrap().unwrap();
-        assert_eq!(mount_point.mount_point, Path::new(OsStr::from_bytes(b"/\xff")));
+        assert_eq!(
+            mount_point.mount_point,
+            Path::new(OsStr::from_bytes(b"/\xff"))
+        );
         assert_eq!(mount_point.mount_options, OsStr::new("rw"));
         assert_eq!(mount_point.fstype, OsStr::new("tmpfs"));
         assert_eq!(mount_point.mount_source, OsStr::new("tmpfs"));
@@ -519,7 +568,10 @@ mod test {
         assert_eq!(mount_point.mount_point, Path::new("/tmp"));
         assert_eq!(mount_point.mount_options, OsStr::new("rw,nosuid,nodev"));
         assert_eq!(mount_point.super_options, OsStr::new("rw"));
-        assert_eq!(mount_point.get_mount_flags(), MsFlags::MS_NOSUID | MsFlags::MS_NODEV);
+        assert_eq!(
+            mount_point.get_mount_flags(),
+            MsFlags::MS_NOSUID | MsFlags::MS_NODEV
+        );
         assert!(parser.next().is_none());
     }
 
@@ -530,10 +582,10 @@ mod test {
         let mount_info_res = parser.next().unwrap();
         assert!(mount_info_res.is_err());
         match mount_info_res {
-            Err(ParseError {ref msg, ..}) => {
+            Err(ParseError { ref msg, .. }) => {
                 assert_eq!(msg, "Expected more fields");
-            },
-            _ => panic!("Expected incomplete row error")
+            }
+            _ => panic!("Expected incomplete row error"),
         }
         assert!(parser.next().is_none());
     }
@@ -545,10 +597,10 @@ mod test {
         let mount_info_res = parser.next().unwrap();
         assert!(mount_info_res.is_err());
         match mount_info_res {
-            Err(ParseError {ref msg, ..}) => {
+            Err(ParseError { ref msg, .. }) => {
                 assert!(msg.starts_with("Cannot parse integer \"24b\":"));
-            },
-            _ => panic!("Expected invalid row error")
+            }
+            _ => panic!("Expected invalid row error"),
         }
         assert!(parser.next().is_none());
     }
@@ -560,10 +612,10 @@ mod test {
         let mount_info_res = parser.next().unwrap();
         assert!(mount_info_res.is_err());
         match mount_info_res {
-            Err(ParseError {ref msg, ..}) => {
+            Err(ParseError { ref msg, .. }) => {
                 assert!(msg.starts_with("Cannot parse integer \"111111111111111111111\""));
-            },
-            _ => panic!("Expected invalid row error")
+            }
+            _ => panic!("Expected invalid row error"),
         }
         assert!(parser.next().is_none());
     }
@@ -582,7 +634,10 @@ mod test {
         let content = b"19 24 0:4 / /proc\\400 rw,nosuid,nodev,noexec,relatime - proc proc rw";
         let mut parser = Parser::new(&content[..]);
         let mount_point = parser.next().unwrap().unwrap();
-        assert_eq!(mount_point.mount_point, Path::new(OsStr::from_bytes(b"/proc\x00")));
+        assert_eq!(
+            mount_point.mount_point,
+            Path::new(OsStr::from_bytes(b"/proc\x00"))
+        );
         assert!(parser.next().is_none());
     }
 }

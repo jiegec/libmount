@@ -1,18 +1,18 @@
-use std::io;
-use std::fmt;
+use std::default::Default;
+use std::env::current_dir;
 use std::ffi::CStr;
+use std::fmt;
 use std::fs::File;
+use std::io;
 use std::io::Read;
 use std::path::{Path, PathBuf};
-use std::env::current_dir;
-use std::default::Default;
 
-use nix::mount::{MsFlags, mount};
+use nix::mount::{mount, MsFlags};
 
-use {OSError, Error};
-use util::path_to_cstring;
-use explain::{Explainable, exists, user};
-use mountinfo::{parse_mount_point};
+use crate::explain::{exists, user, Explainable};
+use crate::mountinfo::parse_mount_point;
+use crate::util::path_to_cstring;
+use crate::{Error, OSError};
 
 /// A remount definition
 ///
@@ -166,7 +166,7 @@ impl Remount {
             Ok(flags) => flags,
             Err(e) => {
                 return Err(OSError::from_remount(e, Box::new(self)));
-            },
+            }
         };
         flags = self.flags.apply_to_flags(flags) | MsFlags::MS_REMOUNT;
         mount(
@@ -175,7 +175,8 @@ impl Remount {
             None::<&CStr>,
             flags,
             None::<&CStr>,
-        ).map_err(|err| OSError::from_nix(err, Box::new(self)))
+        )
+        .map_err(|err| OSError::from_nix(err, Box::new(self)))
     }
 
     /// Execute a remount and explain the error immediately
@@ -188,51 +189,51 @@ impl fmt::Display for MountFlags {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         let mut prefix = "";
         if let Some(true) = self.bind {
-            try!(write!(fmt, "{}bind", prefix));
+            write!(fmt, "{}bind", prefix)?;
             prefix = ",";
         }
         if let Some(true) = self.readonly {
-            try!(write!(fmt, "{}ro", prefix));
+            write!(fmt, "{}ro", prefix)?;
             prefix = ",";
         }
         if let Some(true) = self.nodev {
-            try!(write!(fmt, "{}nodev", prefix));
+            write!(fmt, "{}nodev", prefix)?;
             prefix = ",";
         }
         if let Some(true) = self.noexec {
-            try!(write!(fmt, "{}noexec", prefix));
+            write!(fmt, "{}noexec", prefix)?;
             prefix = ",";
         }
         if let Some(true) = self.nosuid {
-            try!(write!(fmt, "{}nosuid", prefix));
+            write!(fmt, "{}nosuid", prefix)?;
             prefix = ",";
         }
         if let Some(true) = self.noatime {
-            try!(write!(fmt, "{}noatime", prefix));
+            write!(fmt, "{}noatime", prefix)?;
             prefix = ",";
         }
         if let Some(true) = self.nodiratime {
-            try!(write!(fmt, "{}nodiratime", prefix));
+            write!(fmt, "{}nodiratime", prefix)?;
             prefix = ",";
         }
         if let Some(true) = self.relatime {
-            try!(write!(fmt, "{}relatime", prefix));
+            write!(fmt, "{}relatime", prefix)?;
             prefix = ",";
         }
         if let Some(true) = self.strictatime {
-            try!(write!(fmt, "{}strictatime", prefix));
+            write!(fmt, "{}strictatime", prefix)?;
             prefix = ",";
         }
         if let Some(true) = self.dirsync {
-            try!(write!(fmt, "{}dirsync", prefix));
+            write!(fmt, "{}dirsync", prefix)?;
             prefix = ",";
         }
         if let Some(true) = self.synchronous {
-            try!(write!(fmt, "{}sync", prefix));
+            write!(fmt, "{}sync", prefix)?;
             prefix = ",";
         }
         if let Some(true) = self.mandlock {
-            try!(write!(fmt, "{}mand", prefix));
+            write!(fmt, "{}mand", prefix)?;
         }
         Ok(())
     }
@@ -241,7 +242,7 @@ impl fmt::Display for MountFlags {
 impl fmt::Display for Remount {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         if !self.flags.apply_to_flags(MsFlags::empty()).is_empty() {
-            try!(write!(fmt, "{} ", self.flags));
+            write!(fmt, "{} ", self.flags)?;
         }
         write!(fmt, "remount {:?}", &self.path)
     }
@@ -251,8 +252,9 @@ impl Explainable for Remount {
     fn explain(&self) -> String {
         [
             format!("path: {}", exists(&self.path)),
-            format!("{}", user()),
-        ].join(", ")
+            user().to_string(),
+        ]
+        .join(", ")
     }
 }
 
@@ -260,18 +262,17 @@ fn get_mountpoint_flags(path: &Path) -> Result<MsFlags, RemountError> {
     let mount_path = if path.is_absolute() {
         path.to_path_buf()
     } else {
-        let mut mpath = try!(current_dir());
+        let mut mpath = current_dir()?;
         mpath.push(path);
         mpath
     };
     let mut mountinfo_content = Vec::with_capacity(4 * 1024);
     let mountinfo_path = Path::new("/proc/self/mountinfo");
-    let mut mountinfo_file = try!(File::open(mountinfo_path)
-        .map_err(|e| RemountError::Io(
-            format!("Cannot open file: {:?}", mountinfo_path), e)));
-    try!(mountinfo_file.read_to_end(&mut mountinfo_content)
-        .map_err(|e| RemountError::Io(
-            format!("Cannot read file: {:?}", mountinfo_path), e)));
+    let mut mountinfo_file = File::open(mountinfo_path)
+        .map_err(|e| RemountError::Io(format!("Cannot open file: {:?}", mountinfo_path), e))?;
+    mountinfo_file
+        .read_to_end(&mut mountinfo_content)
+        .map_err(|e| RemountError::Io(format!("Cannot read file: {:?}", mountinfo_path), e))?;
     match get_mountpoint_flags_from(&mountinfo_content, &mount_path) {
         Ok(Some(flags)) => Ok(flags),
         Ok(None) => Err(RemountError::UnknownMountPoint(mount_path)),
@@ -279,13 +280,10 @@ fn get_mountpoint_flags(path: &Path) -> Result<MsFlags, RemountError> {
     }
 }
 
-fn get_mountpoint_flags_from(content: &[u8], path: &Path)
-    -> Result<Option<MsFlags>, RemountError>
-{
+fn get_mountpoint_flags_from(content: &[u8], path: &Path) -> Result<Option<MsFlags>, RemountError> {
     // iterate from the end of the mountinfo file
     for line in content.split(|c| *c == b'\n').rev() {
-        let entry = parse_mount_point(line)
-            .map_err(|e| RemountError::ParseMountInfo(e.0))?;
+        let entry = parse_mount_point(line).map_err(|e| RemountError::ParseMountInfo(e.0))?;
         if let Some(mount_point) = entry {
             if mount_point.mount_point == path {
                 return Ok(Some(mount_point.get_mount_flags()));
@@ -297,15 +295,15 @@ fn get_mountpoint_flags_from(content: &[u8], path: &Path)
 
 #[cfg(test)]
 mod test {
-    use std::path::Path;
     use std::ffi::OsStr;
     use std::os::unix::ffi::OsStrExt;
+    use std::path::Path;
 
     use nix::mount::MsFlags;
 
-    use Error;
-    use super::{Remount, RemountError, MountFlags};
     use super::{get_mountpoint_flags, get_mountpoint_flags_from};
+    use super::{MountFlags, Remount, RemountError};
+    use crate::Error;
 
     #[test]
     fn test_mount_flags() {
@@ -323,9 +321,19 @@ mod test {
             synchronous: Some(true),
             mandlock: Some(true),
         };
-        let bits = (MsFlags::MS_BIND | MsFlags::MS_RDONLY | MsFlags::MS_NODEV | MsFlags::MS_NOEXEC | MsFlags::MS_NOSUID |
-            MsFlags::MS_NOATIME | MsFlags::MS_NODIRATIME | MsFlags::MS_RELATIME | MsFlags::MS_STRICTATIME |
-            MsFlags::MS_DIRSYNC | MsFlags::MS_SYNCHRONOUS | MsFlags::MS_MANDLOCK).bits();
+        let bits = (MsFlags::MS_BIND
+            | MsFlags::MS_RDONLY
+            | MsFlags::MS_NODEV
+            | MsFlags::MS_NOEXEC
+            | MsFlags::MS_NOSUID
+            | MsFlags::MS_NOATIME
+            | MsFlags::MS_NODIRATIME
+            | MsFlags::MS_RELATIME
+            | MsFlags::MS_STRICTATIME
+            | MsFlags::MS_DIRSYNC
+            | MsFlags::MS_SYNCHRONOUS
+            | MsFlags::MS_MANDLOCK)
+            .bits();
         assert_eq!(flags.apply_to_flags(MsFlags::empty()).bits(), bits);
 
         let flags = MountFlags {
@@ -342,11 +350,24 @@ mod test {
             synchronous: Some(false),
             mandlock: Some(false),
         };
-        assert_eq!(flags.apply_to_flags(MsFlags::from_bits_truncate(bits)).bits(), 0);
+        assert_eq!(
+            flags
+                .apply_to_flags(MsFlags::from_bits_truncate(bits))
+                .bits(),
+            0
+        );
 
         let flags = MountFlags::default();
-        assert_eq!(flags.apply_to_flags(MsFlags::from_bits_truncate(0)).bits(), 0);
-        assert_eq!(flags.apply_to_flags(MsFlags::from_bits_truncate(bits)).bits(), bits);
+        assert_eq!(
+            flags.apply_to_flags(MsFlags::from_bits_truncate(0)).bits(),
+            0
+        );
+        assert_eq!(
+            flags
+                .apply_to_flags(MsFlags::from_bits_truncate(bits))
+                .bits(),
+            bits
+        );
     }
 
     #[test]
@@ -361,15 +382,22 @@ mod test {
     #[test]
     fn test_get_mountpoint_flags_from() {
         let content = b"19 24 0:4 / /proc rw,nosuid,nodev,noexec,relatime shared:12 - proc proc rw";
-        let flags = get_mountpoint_flags_from(&content[..], Path::new("/proc")).unwrap().unwrap();
-        assert_eq!(flags, MsFlags::MS_NODEV | MsFlags::MS_NOEXEC | MsFlags::MS_NOSUID | MsFlags::MS_RELATIME);
+        let flags = get_mountpoint_flags_from(&content[..], Path::new("/proc"))
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            flags,
+            MsFlags::MS_NODEV | MsFlags::MS_NOEXEC | MsFlags::MS_NOSUID | MsFlags::MS_RELATIME
+        );
     }
 
     #[test]
     fn test_get_mountpoint_flags_from_dups() {
         let content = b"11 18 0:4 / /tmp rw shared:28 - tmpfs tmpfs rw\n\
                         12 18 0:6 / /tmp rw,nosuid,nodev shared:29 - tmpfs tmpfs rw\n";
-        let flags = get_mountpoint_flags_from(&content[..], Path::new("/tmp")).unwrap().unwrap();
+        let flags = get_mountpoint_flags_from(&content[..], Path::new("/tmp"))
+            .unwrap()
+            .unwrap();
         assert_eq!(flags, MsFlags::MS_NOSUID | MsFlags::MS_NODEV);
     }
 
@@ -395,13 +423,10 @@ mod test {
         let Error(_, e, msg) = error;
         match e.get_ref() {
             Some(e) => {
-                assert_eq!(
-                   e.to_string(),
-                   "Cannot find mount point: \"/non-existent\"");
-            },
+                assert_eq!(e.to_string(), "Cannot find mount point: \"/non-existent\"");
+            }
             _ => panic!(),
         }
-        assert!(msg.starts_with(
-            "Cannot find mount point: \"/non-existent\", path: missing, "));
+        assert!(msg.starts_with("Cannot find mount point: \"/non-existent\", path: missing, "));
     }
 }

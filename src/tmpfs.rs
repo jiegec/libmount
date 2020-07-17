@@ -1,16 +1,15 @@
-use std::io::{Write, Cursor};
+use std::ffi::{CStr, CString};
 use std::fmt;
-use std::str::from_utf8;
-use std::ffi::{CString, CStr};
+use std::io::{Cursor, Write};
 use std::path::Path;
+use std::str::from_utf8;
 
-use libc::{uid_t, gid_t, mode_t};
-use nix::mount::{MsFlags, mount};
+use libc::{gid_t, mode_t, uid_t};
+use nix::mount::{mount, MsFlags};
 
-use {OSError, Error};
-use util::{path_to_cstring, as_path};
-use explain::{Explainable, exists, user};
-
+use crate::explain::{exists, user, Explainable};
+use crate::util::{as_path, path_to_cstring};
+use crate::{Error, OSError};
 
 #[derive(Debug, Clone, Copy)]
 enum Size {
@@ -43,7 +42,7 @@ impl Tmpfs {
             mode: None,
             uid: None,
             gid: None,
-            flags: MsFlags::MS_NOSUID|MsFlags::MS_NODEV,
+            flags: MsFlags::MS_NOSUID | MsFlags::MS_NODEV,
         }
     }
     /// Set size in bytes
@@ -86,41 +85,43 @@ impl Tmpfs {
         }
         if let Some(inodes) = self.nr_inodes {
             if cur.position() != 0 {
-                cur.write(b",").unwrap();
+                cur.write_all(b",").unwrap();
             }
             write!(cur, "nr_inodes={}", inodes).unwrap();
         }
         if let Some(mode) = self.mode {
             if cur.position() != 0 {
-                cur.write(b",").unwrap();
+                cur.write_all(b",").unwrap();
             }
             write!(cur, "mode=0{:04o}", mode).unwrap();
         }
         if let Some(uid) = self.uid {
             if cur.position() != 0 {
-                cur.write(b",").unwrap();
+                cur.write_all(b",").unwrap();
             }
             write!(cur, "uid={}", uid).unwrap();
         }
         if let Some(gid) = self.gid {
             if cur.position() != 0 {
-                cur.write(b",").unwrap();
+                cur.write_all(b",").unwrap();
             }
             write!(cur, "gid={}", gid).unwrap();
         }
-        return cur.into_inner();
+
+        cur.into_inner()
     }
 
     /// Mount the tmpfs
     pub fn bare_mount(self) -> Result<(), OSError> {
-        let mut options = self.format_options();
+        let options = self.format_options();
         mount(
             Some(CStr::from_bytes_with_nul(b"tmpfs\0").unwrap()),
             &*self.target,
             Some(CStr::from_bytes_with_nul(b"tmpfs\0").unwrap()),
             self.flags,
-            Some(&*options)
-        ).map_err(|err| OSError::from_nix(err, Box::new(self)))
+            Some(&*options),
+        )
+        .map_err(|err| OSError::from_nix(err, Box::new(self)))
     }
 
     /// Mount the tmpfs and explain error immediately
@@ -132,8 +133,12 @@ impl Tmpfs {
 impl fmt::Display for Tmpfs {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         let opts = self.format_options();
-        write!(fmt, "tmpfs {} -> {:?}", from_utf8(&opts).unwrap(),
-            as_path(&self.target))
+        write!(
+            fmt,
+            "tmpfs {} -> {:?}",
+            from_utf8(&opts).unwrap(),
+            as_path(&self.target)
+        )
     }
 }
 
@@ -141,11 +146,11 @@ impl Explainable for Tmpfs {
     fn explain(&self) -> String {
         [
             format!("target: {}", exists(as_path(&self.target))),
-            format!("{}", user()),
-        ].join(", ")
+            user().to_string(),
+        ]
+        .join(", ")
     }
 }
-
 
 mod test {
     #[cfg(test)]
@@ -160,7 +165,9 @@ mod test {
             .uid(1000)
             .gid(1000);
 
-        assert_eq!(fs.format_options(),
-            "size=1048576,nr_inodes=1024,mode=01777,uid=1000,gid=1000".as_bytes())
+        assert_eq!(
+            fs.format_options(),
+            "size=1048576,nr_inodes=1024,mode=01777,uid=1000,gid=1000".as_bytes()
+        )
     }
 }

@@ -1,15 +1,14 @@
-use std::fmt;
 use std::ffi::{CStr, CString, OsStr};
+use std::fmt;
 use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
 
-use nix::mount::{MsFlags, mount};
+use nix::mount::{mount, MsFlags};
 
-use {OSError, Error};
-use util::{path_to_cstring, as_path};
-use explain::{Explainable, exists, user};
-use remount::Remount;
-
+use crate::explain::{exists, user, Explainable};
+use crate::remount::Remount;
+use crate::util::{as_path, path_to_cstring};
+use crate::{Error, OSError};
 
 /// A mount bind definition
 ///
@@ -28,9 +27,7 @@ impl BindMount {
     /// Create a new, recursive bind mount
     ///
     /// You can disable recursion with a `non_recursive()` method
-    pub fn new<A: AsRef<Path>, B: AsRef<Path>>(source: A, target: B)
-        -> BindMount
-    {
+    pub fn new<A: AsRef<Path>, B: AsRef<Path>>(source: A, target: B) -> BindMount {
         BindMount {
             source: path_to_cstring(source.as_ref()),
             target: path_to_cstring(target.as_ref()),
@@ -60,7 +57,7 @@ impl BindMount {
     pub fn bare_mount(self) -> Result<(), OSError> {
         let mut flags = MsFlags::MS_BIND;
         if self.recursive {
-            flags = flags | MsFlags::MS_REC;
+            flags |= MsFlags::MS_REC;
         }
         if let Err(err) = mount(
             Some(&*self.source),
@@ -72,10 +69,10 @@ impl BindMount {
             return Err(OSError::from_nix(err, Box::new(self)));
         }
         if self.readonly {
-            try!(Remount::new(OsStr::from_bytes(self.target.as_bytes()))
+            Remount::new(OsStr::from_bytes(self.target.as_bytes()))
                 .bind(true)
                 .readonly(true)
-                .bare_remount());
+                .bare_remount()?;
         }
         Ok(())
     }
@@ -89,10 +86,14 @@ impl BindMount {
 impl fmt::Display for BindMount {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         if self.recursive {
-            try!(write!(fmt, "recursive "));
+            write!(fmt, "recursive ")?;
         }
-        write!(fmt, "bind mount {:?} -> {:?}",
-            as_path(&self.source), as_path(&self.target))
+        write!(
+            fmt,
+            "bind mount {:?} -> {:?}",
+            as_path(&self.source),
+            as_path(&self.target)
+        )
     }
 }
 
@@ -101,8 +102,8 @@ impl Explainable for BindMount {
         [
             format!("source: {}", exists(as_path(&self.source))),
             format!("target: {}", exists(as_path(&self.target))),
-            format!("{}", user()),
-        ].join(", ")
+            user().to_owned(),
+        ]
+        .join(", ")
     }
 }
-

@@ -1,12 +1,12 @@
-use std::fmt;
 use std::ffi::{CStr, CString};
+use std::fmt;
 use std::path::Path;
 
-use nix::mount::{MsFlags, mount};
+use nix::mount::{mount, MsFlags};
 
-use {OSError, Error};
-use util::{path_to_cstring, as_path};
-use explain::{Explainable, exists};
+use crate::explain::{exists, Explainable};
+use crate::util::{as_path, path_to_cstring};
+use crate::{Error, OSError};
 
 /// A move operation definition
 ///
@@ -28,11 +28,15 @@ impl Move {
     }
 
     /// Execute a move-mountpoint operation
-    pub fn bare_move_mountpoint(self)
-        -> Result<(), OSError>
-    {
-        mount(Some(&*self.source), &*self.target, None::<&CStr>, MsFlags::MS_MOVE, None::<&CStr>)
-            .map_err(|err| OSError::from_nix(err, Box::new(self)))
+    pub fn bare_move_mountpoint(self) -> Result<(), OSError> {
+        mount(
+            Some(&*self.source),
+            &*self.target,
+            None::<&CStr>,
+            MsFlags::MS_MOVE,
+            None::<&CStr>,
+        )
+        .map_err(|err| OSError::from_nix(err, Box::new(self)))
     }
 
     /// Execute a move mountpoint operation and explain the error immediately
@@ -43,8 +47,12 @@ impl Move {
 
 impl fmt::Display for Move {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        write!(fmt, "move {:?} -> {:?}",
-            as_path(&self.source), as_path(&self.target))
+        write!(
+            fmt,
+            "move {:?} -> {:?}",
+            as_path(&self.source),
+            as_path(&self.target)
+        )
     }
 }
 
@@ -53,7 +61,7 @@ impl Explainable for Move {
         [
             format!("source: {}", exists(as_path(&self.source))),
             format!("target: {}", exists(as_path(&self.target))),
-        ].join(", ")
+        ]
+        .join(", ")
     }
 }
-

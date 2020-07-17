@@ -24,27 +24,28 @@
 
 extern crate libc;
 extern crate nix;
-#[macro_use] extern crate quick_error;
+#[macro_use]
+extern crate quick_error;
 
-mod util;
+mod bind;
 mod error;
 mod explain;
-mod bind;
-mod overlay;
-mod tmpfs;
 mod modify;
-mod remount;
 pub mod mountinfo;
+mod overlay;
+mod remount;
+mod tmpfs;
+mod util;
 
 use std::io;
 
-use explain::Explainable;
-use remount::RemountError;
 pub use bind::BindMount;
-pub use overlay::Overlay;
-pub use tmpfs::Tmpfs;
+use explain::Explainable;
 pub use modify::Move;
+pub use overlay::Overlay;
 pub use remount::Remount;
+use remount::RemountError;
+pub use tmpfs::Tmpfs;
 
 quick_error! {
     #[derive(Debug)]
@@ -75,18 +76,19 @@ quick_error! {
 /// path.
 ///
 #[derive(Debug)]
-pub struct OSError(MountError, Box<Explainable>);
+pub struct OSError(MountError, Box<dyn Explainable>);
 
 impl OSError {
-    fn from_remount(err: RemountError, explain: Box<Explainable>) -> OSError {
+    fn from_remount(err: RemountError, explain: Box<dyn Explainable>) -> OSError {
         OSError(MountError::Remount(err), explain)
     }
 
-    fn from_nix(err: nix::Error, explain: Box<Explainable>) -> OSError {
+    fn from_nix(err: nix::Error, explain: Box<dyn Explainable>) -> OSError {
         OSError(
-            MountError::Io(
-                err.as_errno().map_or_else(|| io::Error::new(io::ErrorKind::Other, err), io::Error::from),
-            ),
+            MountError::Io(err.as_errno().map_or_else(
+                || io::Error::new(io::ErrorKind::Other, err),
+                io::Error::from,
+            )),
             explain,
         )
     }
@@ -98,4 +100,4 @@ impl OSError {
 /// This type only provides `Display` for now, but some programmatic interface
 /// is expected in future.
 #[derive(Debug)]
-pub struct Error(Box<Explainable>, io::Error, String);
+pub struct Error(Box<dyn Explainable>, io::Error, String);
