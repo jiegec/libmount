@@ -71,9 +71,8 @@ quick_error! {
     #[derive(Debug)]
     pub enum RemountError {
         Io(msg: String, err: io::Error) {
-            cause(err)
+            source(err)
             display("{}: {}", msg, err)
-            description(err.description())
             from(err: io::Error) -> (String::new(), err)
         }
         ParseMountInfo(err: String) {

@@ -51,11 +51,11 @@ quick_error! {
     #[derive(Debug)]
     enum MountError {
         Io(err: io::Error) {
-            cause(err)
+            source(err)
             from()
         }
         Remount(err: RemountError) {
-            cause(err)
+            source(err)
             from()
         }
     }

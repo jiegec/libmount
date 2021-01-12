@@ -364,7 +364,7 @@ fn is_octal_encoding(v: &[u8]) -> bool {
 }
 
 fn is_oct(c: u8) -> bool {
-    c >= b'0' && c <= b'7'
+    (b'0'..=b'7').contains(&c)
 }
 
 fn parse_octal(v: &[u8]) -> u8 {
