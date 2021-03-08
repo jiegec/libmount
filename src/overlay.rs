@@ -24,6 +24,7 @@ pub struct Overlay {
     upperdir: Option<PathBuf>,
     workdir: Option<PathBuf>,
     target: CString,
+    options: Option<Vec<u8>>,
 }
 
 impl Overlay {
@@ -44,6 +45,7 @@ impl Overlay {
             upperdir: None,
             workdir: None,
             target: path_to_cstring(target.as_ref()),
+            options: None,
         }
     }
     /// A constructor for writable overlayfs mount
@@ -63,7 +65,13 @@ impl Overlay {
             upperdir: Some(upperdir.as_ref().to_path_buf()),
             workdir: Some(workdir.as_ref().to_path_buf()),
             target: path_to_cstring(target.as_ref()),
+            options: None,
         }
+    }
+
+    /// Set extra options for the mount
+    pub fn set_options(&mut self, options: Vec<u8>) {
+        self.options = Some(options);
     }
 
     /// Execute an overlay mount
@@ -81,6 +89,10 @@ impl Overlay {
             append_escape(&mut options, u);
             options.extend(b",workdir=");
             append_escape(&mut options, w);
+        }
+        if let Some(u) = self.options.as_ref() {
+            options.push(b',');
+            options.extend(u);
         }
         mount(
             Some(CStr::from_bytes_with_nul(b"overlay\0").unwrap()),
@@ -171,13 +183,14 @@ impl Explainable for Overlay {
             info.push(format!("workdir: {}", exists(&wdir)));
 
             if let (Some(u), Some(w)) = (umeta, wmeta) {
-                info.push((
-                    if u.dev() == w.dev() {
+                info.push(
+                    (if u.dev() == w.dev() {
                         "same-fs"
                     } else {
                         "different-fs"
-                    }
-                ).to_string());
+                    })
+                    .to_string(),
+                );
             }
             if udir.starts_with(wdir) {
                 info.push("upperdir-prefix-of-workdir".to_string());
