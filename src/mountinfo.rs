@@ -36,11 +36,7 @@ pub struct ParseError {
 
 impl ParseError {
     fn new(msg: String, row_num: usize, row: String) -> ParseError {
-        ParseError {
-            msg,
-            row_num,
-            row,
-        }
+        ParseError { msg, row_num, row }
     }
 }
 
@@ -49,9 +45,7 @@ impl fmt::Display for ParseError {
         write!(
             f,
             "Parse error at line {}: {}\n{}",
-            self.row_num,
-            self.msg,
-            self.row
+            self.row_num, self.msg, self.row
         )
     }
 }
@@ -182,10 +176,8 @@ impl<'a> Iterator for Parser<'a> {
     }
 }
 
-pub(crate) fn parse_mount_point(
-    row: &[u8],
-) -> Result<Option<MountPoint>, ParseRowError> {
-    let row = rstrip_cr(&row);
+pub(crate) fn parse_mount_point(row: &[u8]) -> Result<Option<MountPoint>, ParseRowError> {
+    let row = rstrip_cr(row);
     if is_comment_line(row) {
         return Ok(None);
     }

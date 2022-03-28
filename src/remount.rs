@@ -249,11 +249,7 @@ impl fmt::Display for Remount {
 
 impl Explainable for Remount {
     fn explain(&self) -> String {
-        [
-            format!("path: {}", exists(&self.path)),
-            user().to_string(),
-        ]
-        .join(", ")
+        [format!("path: {}", exists(&self.path)), user().to_string()].join(", ")
     }
 }
 

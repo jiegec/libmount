@@ -84,13 +84,7 @@ impl OSError {
     }
 
     fn from_nix(err: nix::Error, explain: Box<dyn Explainable>) -> OSError {
-        OSError(
-            MountError::Io(err.as_errno().map_or_else(
-                || io::Error::new(io::ErrorKind::Other, err),
-                io::Error::from,
-            )),
-            explain,
-        )
+        OSError(MountError::Io(io::Error::from(err)), explain)
     }
 }
 

@@ -40,7 +40,7 @@ fn main() {
     match libmount::Overlay::writable(
         lowerdirs.iter().map(|x| x.as_ref()),
         &upper,
-        work.unwrap_or(upper.join("tmp")),
+        work.unwrap_or_else(|| upper.join("tmp")),
         target,
     )
     .mount()

@@ -179,8 +179,8 @@ impl Explainable for Overlay {
         if let (Some(udir), Some(wdir)) = (self.upperdir.as_ref(), self.workdir.as_ref()) {
             let umeta = metadata(&udir).ok();
             let wmeta = metadata(&wdir).ok();
-            info.push(format!("upperdir: {}", exists(&udir)));
-            info.push(format!("workdir: {}", exists(&wdir)));
+            info.push(format!("upperdir: {}", exists(udir)));
+            info.push(format!("workdir: {}", exists(wdir)));
 
             if let (Some(u), Some(w)) = (umeta, wmeta) {
                 info.push(
